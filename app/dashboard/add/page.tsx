@@ -35,35 +35,50 @@ export default function AddEventPage() {
         }));
     }
 
-    function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
 
-        if (
-            !form.name.trim() ||
-            !form.description.trim() ||
-            !form.date ||
-            !form.venue.trim() ||
-            !form.type.trim()
-        ) {
-            toast.error("Please fill in all required fields.");
-            return;
+        if (loading) return;
+
+        try {
+            setLoading(true);
+
+            const response = await fetch("/api/event", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(form),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Failed to create event");
+            }
+
+            toast.success("Event created successfully!");
+
+            router.push("/dashboard");
+        } catch (error) {
+            console.error("CREATE EVENT ERROR:", error);
+
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Something went wrong"
+            );
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(true);
-
-        // TODO: Connect POST /api/events here.
-        console.log("New Event:", form);
-
-        toast.success("Form validated. Event API integration is pending.");
-        setLoading(false);
     }
 
     return (
         <main className="min-h-screen bg-[#F3EFE5] text-[#202A24]">
 
-            {/* Header */}
             <header className="bg-[#202A24] text-[#F3EFE5] px-6 md:px-12 py-6">
                 <div className="max-w-5xl mx-auto flex items-center justify-between">
+
                     <Link
                         href="/dashboard"
                         className="text-3xl font-bold tracking-tight"
@@ -77,10 +92,10 @@ export default function AddEventPage() {
                     >
                         ← Back to Dashboard
                     </Link>
+
                 </div>
             </header>
 
-            {/* Form */}
             <section className="max-w-3xl mx-auto px-6 py-12 md:py-16">
 
                 <div className="mb-10">
@@ -93,18 +108,14 @@ export default function AddEventPage() {
                     </h1>
 
                     <p className="mt-3 text-sm opacity-70">
-                        Add the details of your upcoming event.
+                        Add the details of your event.
                     </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
 
-                    {/* Event Name */}
                     <div>
-                        <label
-                            htmlFor="name"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="name" className="block text-sm font-semibold mb-2">
                             Event Name *
                         </label>
 
@@ -113,6 +124,7 @@ export default function AddEventPage() {
                             name="name"
                             type="text"
                             required
+                            maxLength={100}
                             value={form.name}
                             onChange={handleChange}
                             placeholder="Enter event name"
@@ -120,12 +132,8 @@ export default function AddEventPage() {
                         />
                     </div>
 
-                    {/* Description */}
                     <div>
-                        <label
-                            htmlFor="description"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="description" className="block text-sm font-semibold mb-2">
                             Description *
                         </label>
 
@@ -133,6 +141,7 @@ export default function AddEventPage() {
                             id="description"
                             name="description"
                             required
+                            maxLength={2000}
                             rows={4}
                             value={form.description}
                             onChange={handleChange}
@@ -141,14 +150,10 @@ export default function AddEventPage() {
                         />
                     </div>
 
-                    {/* Date and Type */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
                         <div>
-                            <label
-                                htmlFor="date"
-                                className="block text-sm font-semibold mb-2"
-                            >
+                            <label htmlFor="date" className="block text-sm font-semibold mb-2">
                                 Event Date *
                             </label>
 
@@ -157,6 +162,7 @@ export default function AddEventPage() {
                                 name="date"
                                 type="date"
                                 required
+                                min={new Date().toLocaleDateString("en-CA")}
                                 value={form.date}
                                 onChange={handleChange}
                                 className="w-full bg-transparent border border-[#202A24]/30 px-4 py-3.5 rounded-md outline-none focus:border-[#D65A3A] transition-colors"
@@ -164,10 +170,7 @@ export default function AddEventPage() {
                         </div>
 
                         <div>
-                            <label
-                                htmlFor="type"
-                                className="block text-sm font-semibold mb-2"
-                            >
+                            <label htmlFor="type" className="block text-sm font-semibold mb-2">
                                 Event Type *
                             </label>
 
@@ -176,6 +179,7 @@ export default function AddEventPage() {
                                 name="type"
                                 type="text"
                                 required
+                                maxLength={50}
                                 value={form.type}
                                 onChange={handleChange}
                                 placeholder="e.g. Conference"
@@ -185,12 +189,8 @@ export default function AddEventPage() {
 
                     </div>
 
-                    {/* Venue */}
                     <div>
-                        <label
-                            htmlFor="venue"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="venue" className="block text-sm font-semibold mb-2">
                             Venue *
                         </label>
 
@@ -199,6 +199,7 @@ export default function AddEventPage() {
                             name="venue"
                             type="text"
                             required
+                            maxLength={150}
                             value={form.venue}
                             onChange={handleChange}
                             placeholder="Enter event location"
@@ -206,12 +207,8 @@ export default function AddEventPage() {
                         />
                     </div>
 
-                    {/* Status */}
                     <div>
-                        <label
-                            htmlFor="status"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="status" className="block text-sm font-semibold mb-2">
                             Event Status
                         </label>
 
@@ -228,7 +225,6 @@ export default function AddEventPage() {
                         </select>
                     </div>
 
-                    {/* Actions */}
                     <div className="flex flex-col sm:flex-row gap-4 pt-4">
 
                         <button
@@ -241,6 +237,7 @@ export default function AddEventPage() {
 
                         <button
                             type="button"
+                            disabled={loading}
                             onClick={() => router.push("/dashboard")}
                             className="flex-1 border border-[#202A24]/30 font-semibold py-4 rounded-md hover:bg-[#202A24] hover:text-[#F3EFE5] transition-colors"
                         >

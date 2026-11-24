@@ -2,13 +2,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
+import toast from "react-hot-toast";
 
 type EventStatus = "Upcoming" | "Completed" | "Cancelled";
 
 type EventItem = {
-    id: string;
+    _id: string;
     name: string;
     description: string;
     date: string;
@@ -30,6 +31,36 @@ export default function DashboardClient({
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState("All");
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [deleting, setDeleting] = useState(false);
+
+    const fetchEvents = useCallback(async () => {
+        try {
+            setLoading(true);
+
+            const response = await fetch("/api/event");
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Failed to fetch events");
+            }
+
+            setEvents(result.data || []);
+        } catch (error) {
+            console.error("FETCH EVENTS ERROR:", error);
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to load events"
+            );
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchEvents();
+    }, [fetchEvents]);
 
     const filteredEvents = useMemo(() => {
         return events.filter((event) => {
@@ -37,7 +68,8 @@ export default function DashboardClient({
 
             const matchesSearch =
                 event.name.toLowerCase().includes(searchTerm) ||
-                event.venue.toLowerCase().includes(searchTerm);
+                event.venue.toLowerCase().includes(searchTerm) ||
+                event.type.toLowerCase().includes(searchTerm);
 
             const matchesFilter =
                 filter === "All" || event.status === filter;
@@ -54,33 +86,57 @@ export default function DashboardClient({
         (event) => event.status === "Completed"
     ).length;
 
-    function handleDelete() {
-        if (!deleteId) return;
+    const cancelled = events.filter(
+        (event) => event.status === "Cancelled"
+    ).length;
 
-        setEvents((previous) =>
-            previous.filter((event) => event.id !== deleteId)
-        );
+    async function handleDelete() {
+        if (!deleteId || deleting) return;
 
-        setDeleteId(null);
+        try {
+            setDeleting(true);
+
+            const response = await fetch(`/api/event/${deleteId}`, {
+                method: "DELETE",
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Failed to delete event");
+            }
+
+            setEvents((previous) =>
+                previous.filter((event) => event._id !== deleteId)
+            );
+
+            setDeleteId(null);
+            toast.success("Event deleted successfully");
+        } catch (error) {
+            console.error("DELETE EVENT ERROR:", error);
+
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to delete event"
+            );
+        } finally {
+            setDeleting(false);
+        }
     }
 
     async function handleLogout() {
-        await signOut({
-            callbackUrl: "/login",
-        });
+        await signOut({ callbackUrl: "/login" });
     }
 
     function formatDate(date: string) {
         if (!date) return "";
 
-        return new Date(date + "T00:00:00").toLocaleDateString(
-            "en-IN",
-            {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-            }
-        );
+        return new Date(date).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+        });
     }
 
     return (
@@ -117,7 +173,6 @@ export default function DashboardClient({
                         Sign out →
                     </button>
                 </div>
-
             </aside>
 
             {/* Main Content */}
@@ -145,7 +200,6 @@ export default function DashboardClient({
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 md:gap-6">
 
-                        {/* Logged-in user */}
                         <div className="flex items-center gap-3 min-w-0">
                             <div className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-[#202A24] text-[#F3EFE5] flex items-center justify-center font-bold text-lg shrink-0">
                                 {userName.charAt(0).toUpperCase()}
@@ -175,7 +229,6 @@ export default function DashboardClient({
                         >
                             + New Event
                         </Link>
-
                     </div>
                 </header>
 
@@ -183,30 +236,21 @@ export default function DashboardClient({
                 <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
 
                     <div className="bg-[#202A24] text-[#F3EFE5] p-6 rounded-lg">
-                        <p className="text-sm opacity-70">
-                            Total Events
-                        </p>
-
+                        <p className="text-sm opacity-70">Total Events</p>
                         <h2 className="text-4xl font-semibold mt-3">
                             {events.length}
                         </h2>
                     </div>
 
                     <div className="border border-[#202A24]/20 p-6 rounded-lg">
-                        <p className="text-sm opacity-70">
-                            Upcoming
-                        </p>
-
+                        <p className="text-sm opacity-70">Upcoming</p>
                         <h2 className="text-4xl font-semibold mt-3">
                             {upcoming}
                         </h2>
                     </div>
 
                     <div className="border border-[#202A24]/20 p-6 rounded-lg">
-                        <p className="text-sm opacity-70">
-                            Completed
-                        </p>
-
+                        <p className="text-sm opacity-70">Completed</p>
                         <h2 className="text-4xl font-semibold mt-3">
                             {completed}
                         </h2>
@@ -245,12 +289,15 @@ export default function DashboardClient({
                             </select>
 
                         </div>
-
                     </div>
 
                     <div className="border-t border-[#202A24]/25">
 
-                        {filteredEvents.length === 0 ? (
+                        {loading ? (
+                            <div className="py-16 text-center opacity-60">
+                                Loading events...
+                            </div>
+                        ) : filteredEvents.length === 0 ? (
 
                             <div className="py-16 text-center">
 
@@ -276,13 +323,11 @@ export default function DashboardClient({
                             filteredEvents.map((event) => (
 
                                 <article
-                                    key={event.id}
+                                    key={event._id}
                                     className="grid grid-cols-1 lg:grid-cols-[1fr_150px_120px_130px] gap-4 py-6 border-b border-[#202A24]/20 items-center"
                                 >
 
-                                    {/* Event Details */}
                                     <div className="min-w-0">
-
                                         <h3 className="font-semibold text-lg">
                                             {event.name}
                                         </h3>
@@ -290,10 +335,8 @@ export default function DashboardClient({
                                         <p className="text-sm opacity-60 mt-1">
                                             {event.venue} · {event.type}
                                         </p>
-
                                     </div>
 
-                                    {/* Event Date */}
                                     <div>
                                         <p className="text-xs opacity-50 uppercase tracking-wider">
                                             Date
@@ -304,25 +347,23 @@ export default function DashboardClient({
                                         </p>
                                     </div>
 
-                                    {/* Status */}
                                     <div>
                                         <span className="text-xs font-semibold border border-[#D65A3A] text-[#D65A3A] px-3 py-1.5 rounded-full">
                                             {event.status}
                                         </span>
                                     </div>
 
-                                    {/* Actions */}
                                     <div className="flex gap-4 text-sm font-semibold">
 
                                         <Link
-                                            href={`/dashboard/${event.id}`}
+                                            href={`/dashboard/${event._id}`}
                                             className="hover:text-[#D65A3A]"
                                         >
                                             Edit
                                         </Link>
 
                                         <button
-                                            onClick={() => setDeleteId(event.id)}
+                                            onClick={() => setDeleteId(event._id)}
                                             className="text-[#D65A3A] hover:underline"
                                         >
                                             Delete
@@ -337,6 +378,12 @@ export default function DashboardClient({
                         )}
 
                     </div>
+
+                    {cancelled > 0 && (
+                        <p className="text-xs opacity-50 mt-4">
+                            {cancelled} cancelled {cancelled === 1 ? "event" : "events"}
+                        </p>
+                    )}
 
                 </section>
 
@@ -354,23 +401,25 @@ export default function DashboardClient({
                         </h2>
 
                         <p className="text-sm mt-3 opacity-70">
-                            Are you sure you want to delete this event?
+                            Are you sure you want to delete this event? This action cannot be undone.
                         </p>
 
                         <div className="flex gap-3 mt-7">
 
                             <button
                                 onClick={() => setDeleteId(null)}
-                                className="flex-1 border border-[#202A24]/30 py-3 rounded-md font-semibold"
+                                disabled={deleting}
+                                className="flex-1 border border-[#202A24]/30 py-3 rounded-md font-semibold disabled:opacity-50"
                             >
                                 Cancel
                             </button>
 
                             <button
                                 onClick={handleDelete}
-                                className="flex-1 bg-[#D65A3A] text-[#202A24] py-3 rounded-md font-bold"
+                                disabled={deleting}
+                                className="flex-1 bg-[#D65A3A] text-[#202A24] py-3 rounded-md font-bold disabled:opacity-50"
                             >
-                                Delete
+                                {deleting ? "Deleting..." : "Delete"}
                             </button>
 
                         </div>

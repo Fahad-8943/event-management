@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 
 type EventStatus = "Upcoming" | "Completed" | "Cancelled";
@@ -23,7 +23,50 @@ export default function EditEventPage() {
         status: "Upcoming" as EventStatus,
     });
 
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        async function fetchEvent() {
+            try {
+                const response = await fetch(`/api/event/${id}`);
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || "Failed to fetch event");
+                }
+
+                const event = result.data;
+
+                setForm({
+                    name: event.name || "",
+                    description: event.description || "",
+                    date: event.date
+                        ? new Date(event.date).toISOString().split("T")[0]
+                        : "",
+                    venue: event.venue || "",
+                    type: event.type || "",
+                    status: event.status || "Upcoming",
+                });
+            } catch (error) {
+                console.error("FETCH EVENT ERROR:", error);
+
+                toast.error(
+                    error instanceof Error
+                        ? error.message
+                        : "Unable to load event"
+                );
+
+                router.replace("/dashboard");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (id) {
+            fetchEvent();
+        }
+    }, [id, router]);
 
     function handleChange(
         e: React.ChangeEvent<
@@ -38,36 +81,55 @@ export default function EditEventPage() {
         }));
     }
 
-    function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
 
-        if (
-            !form.name.trim() ||
-            !form.description.trim() ||
-            !form.date ||
-            !form.venue.trim() ||
-            !form.type.trim()
-        ) {
-            toast.error("Please fill in all required fields.");
-            return;
+        if (saving) return;
+
+        try {
+            setSaving(true);
+
+            const response = await fetch(`/api/event/${id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(form),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Failed to update event");
+            }
+
+            toast.success("Event updated successfully!");
+
+            router.push("/dashboard");
+        } catch (error) {
+            console.error("UPDATE EVENT ERROR:", error);
+
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to update event"
+            );
+        } finally {
+            setSaving(false);
         }
+    }
 
-        setLoading(true);
-
-        // TODO: Connect PUT /api/events/:id here.
-        console.log("Update Event:", {
-            id,
-            ...form,
-        });
-
-        toast.success("Form validated. Event update API integration is pending.");
-        setLoading(false);
+    if (loading) {
+        return (
+            <main className="min-h-screen bg-[#F3EFE5] text-[#202A24] flex items-center justify-center">
+                <p className="text-sm opacity-60">Loading event...</p>
+            </main>
+        );
     }
 
     return (
         <main className="min-h-screen bg-[#F3EFE5] text-[#202A24]">
 
-            {/* Header */}
             <header className="bg-[#202A24] text-[#F3EFE5] px-6 md:px-12 py-6">
                 <div className="max-w-5xl mx-auto flex items-center justify-between">
 
@@ -88,7 +150,6 @@ export default function EditEventPage() {
                 </div>
             </header>
 
-            {/* Form */}
             <section className="max-w-3xl mx-auto px-6 py-12 md:py-16">
 
                 <div className="mb-10">
@@ -107,12 +168,8 @@ export default function EditEventPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
 
-                    {/* Event Name */}
                     <div>
-                        <label
-                            htmlFor="name"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="name" className="block text-sm font-semibold mb-2">
                             Event Name *
                         </label>
 
@@ -121,19 +178,15 @@ export default function EditEventPage() {
                             name="name"
                             type="text"
                             required
+                            maxLength={100}
                             value={form.name}
                             onChange={handleChange}
-                            placeholder="Enter event name"
                             className="w-full bg-transparent border border-[#202A24]/30 px-4 py-3.5 rounded-md outline-none focus:border-[#D65A3A] transition-colors"
                         />
                     </div>
 
-                    {/* Description */}
                     <div>
-                        <label
-                            htmlFor="description"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="description" className="block text-sm font-semibold mb-2">
                             Description *
                         </label>
 
@@ -141,22 +194,18 @@ export default function EditEventPage() {
                             id="description"
                             name="description"
                             required
+                            maxLength={2000}
                             rows={4}
                             value={form.description}
                             onChange={handleChange}
-                            placeholder="Describe your event..."
                             className="w-full bg-transparent border border-[#202A24]/30 px-4 py-3.5 rounded-md outline-none focus:border-[#D65A3A] transition-colors resize-none"
                         />
                     </div>
 
-                    {/* Date and Type */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
                         <div>
-                            <label
-                                htmlFor="date"
-                                className="block text-sm font-semibold mb-2"
-                            >
+                            <label htmlFor="date" className="block text-sm font-semibold mb-2">
                                 Event Date *
                             </label>
 
@@ -172,10 +221,7 @@ export default function EditEventPage() {
                         </div>
 
                         <div>
-                            <label
-                                htmlFor="type"
-                                className="block text-sm font-semibold mb-2"
-                            >
+                            <label htmlFor="type" className="block text-sm font-semibold mb-2">
                                 Event Type *
                             </label>
 
@@ -184,21 +230,17 @@ export default function EditEventPage() {
                                 name="type"
                                 type="text"
                                 required
+                                maxLength={50}
                                 value={form.type}
                                 onChange={handleChange}
-                                placeholder="e.g. Conference"
                                 className="w-full bg-transparent border border-[#202A24]/30 px-4 py-3.5 rounded-md outline-none focus:border-[#D65A3A] transition-colors"
                             />
                         </div>
 
                     </div>
 
-                    {/* Venue */}
                     <div>
-                        <label
-                            htmlFor="venue"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="venue" className="block text-sm font-semibold mb-2">
                             Venue *
                         </label>
 
@@ -207,19 +249,15 @@ export default function EditEventPage() {
                             name="venue"
                             type="text"
                             required
+                            maxLength={150}
                             value={form.venue}
                             onChange={handleChange}
-                            placeholder="Enter event location"
                             className="w-full bg-transparent border border-[#202A24]/30 px-4 py-3.5 rounded-md outline-none focus:border-[#D65A3A] transition-colors"
                         />
                     </div>
 
-                    {/* Status */}
                     <div>
-                        <label
-                            htmlFor="status"
-                            className="block text-sm font-semibold mb-2"
-                        >
+                        <label htmlFor="status" className="block text-sm font-semibold mb-2">
                             Event Status
                         </label>
 
@@ -236,19 +274,19 @@ export default function EditEventPage() {
                         </select>
                     </div>
 
-                    {/* Actions */}
                     <div className="flex flex-col sm:flex-row gap-4 pt-4">
 
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={saving}
                             className="flex-1 bg-[#D65A3A] text-[#202A24] font-bold py-4 rounded-md hover:bg-[#202A24] hover:text-[#F3EFE5] transition-colors disabled:opacity-60"
                         >
-                            {loading ? "Saving..." : "Save Changes →"}
+                            {saving ? "Saving..." : "Save Changes →"}
                         </button>
 
                         <button
                             type="button"
+                            disabled={saving}
                             onClick={() => router.push("/dashboard")}
                             className="flex-1 border border-[#202A24]/30 font-semibold py-4 rounded-md hover:bg-[#202A24] hover:text-[#F3EFE5] transition-colors"
                         >

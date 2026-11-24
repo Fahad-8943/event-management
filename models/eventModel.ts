@@ -1,41 +1,60 @@
-import mongoose from "mongoose";
 
-interface event {
-  name: string;
-  description: string;
-  date: Date;
-  venue: string;
-  type: string;
-  status: string;
+import mongoose, { Types } from "mongoose";
+
+export type EventStatus = "Upcoming" | "Completed" | "Cancelled";
+
+export interface EventDocument {
+    name: string;
+    description: string;
+    date: Date;
+    venue: string;
+    type: string;
+    status: EventStatus;
+    userId: Types.ObjectId;
 }
 
-const eventSchema = new mongoose.Schema<event>({
-  name: {
-    type: String,
-    required: true,
-  },
-  description: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  date: {
-    type: Date,
-    required: true,
-  },
-  venue: {
-    type: String,
-    required: true,
-  },
-  type: {
-    type: String,
-    required: true,
-  },
-  status: {
-    type: String,
-    required: true,
-  },
-});
+const eventSchema = new mongoose.Schema<EventDocument>(
+    {
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        description: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        date: {
+            type: Date,
+            required: true,
+        },
+        venue: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        type: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        status: {
+            type: String,
+            enum: ["Upcoming", "Completed", "Cancelled"],
+            default: "Upcoming",
+            required: true,
+        },
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+            index: true,
+        },
+    },
+    {
+        timestamps: true,
+    }
+);
 
 export default mongoose.models.events ||
-  mongoose.model<event>("events", eventSchema);
+    mongoose.model<EventDocument>("events", eventSchema);
