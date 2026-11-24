@@ -1,10 +1,11 @@
 
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/authOptions";
 import DashboardClient from "./DashboardClient";
 
-export default async function DashboardPage() {
+async function DashboardContent() {
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
@@ -19,5 +20,21 @@ export default async function DashboardPage() {
             userName={userName}
             userEmail={userEmail}
         />
+    );
+}
+
+export default function DashboardPage() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen bg-[#F3EFE5] text-[#202A24] flex items-center justify-center">
+                    <p className="text-sm opacity-60">
+                        Loading dashboard...
+                    </p>
+                </main>
+            }
+        >
+            <DashboardContent />
+        </Suspense>
     );
 }
